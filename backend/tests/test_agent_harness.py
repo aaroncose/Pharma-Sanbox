@@ -177,6 +177,95 @@ def test_insufficient_evidence_blocks_without_calling_the_model(
     assert not any(step.step_type == "llm_call" for step in result.trace.steps)
 
 
+class _SilentRefusalProvider(MockProvider):
+    """Devuelve una negativa sin declararla: texto vacío y `blocked_reason` nulo.
+
+    Es la salida real que produjo `claude-sonnet-5` en una de dos ejecuciones de
+    la misma pregunta. No es una salida inválida ni un fallo del modelo: es la
+    forma natural de decir «esto no está en la documentación».
+    """
+
+    name = "mock_silent_refusal"
+
+    # Si es cierto, la negativa llega además con fuentes citadas. Es la variante
+    # que se coló en el primer intento de arreglo: la condición exigía texto
+    # vacío *y* sin fuentes, y el modelo devolvió vacío *con* dos fuentes.
+    cite_sources: bool = False
+
+    def complete(self, **kwargs):  # type: ignore[override]
+        response = super().complete(**kwargs)
+        if response.parsed is not None and "answer" in response.parsed:
+            response.parsed["answer"] = ""
+            response.parsed["sources"] = (
+                ["doc:00000000-0000-0000-0000-000000000001"]
+                if self.cite_sources
+                else []
+            )
+            response.parsed["blocked_reason"] = None
+            response.parsed["gaps"] = [
+                "La documentación aprobada no cubre la métrica solicitada"
+            ]
+        return response
+
+
+@pytest.mark.parametrize(
+    "cite_sources",
+    [
+        pytest.param(False, id="sin_fuentes"),
+        # Esta variante se coló con el primer arreglo: la condición pedía texto
+        # vacío *y* cero fuentes, y el modelo real devolvió vacío *con* dos
+        # fuentes citadas. Citar documentos sin decir nada sobre ellos no es
+        # media respuesta: es una negativa que reclama procedencia para el vacío.
+        pytest.param(True, id="citando_fuentes"),
+    ],
+)
+def test_an_empty_answer_is_a_refusal_even_if_the_model_never_says_so(
+    nova_session: Session, tenant_ids: dict[str, str], cite_sources: bool
+) -> None:
+    """Que una negativa conste como negativa no puede depender del modelo.
+
+    Un modelo que no puede responder tiene dos maneras de decirlo: dejar el
+    texto vacío y explicar en `gaps` lo que falta —lo que sale de forma
+    natural— o rellenar `blocked_reason`, que exige acordarse del campo.
+
+    Medido con el modelo real y la misma pregunta en dos ejecuciones: una vez lo
+    declaró y otra no, con la respuesta igual de vacía las dos veces. Aceptando
+    la declaración, la segunda salió como `delivered: true` con el cuerpo vacío:
+    el sistema afirmaba haber respondido algo que no existía.
+
+    La regla se deduce de lo observable —sin texto y sin fuentes no se ha
+    respondido— igual que hace la política sobre la respuesta generada, que
+    juzga el texto y no los campos que el modelo dice de sí mismo.
+    """
+    provider = _SilentRefusalProvider()
+    provider.cite_sources = cite_sources
+    provider_module._provider = provider
+
+    result = _run_chat(
+        nova_session,
+        tenant_ids["nph_01"],
+        "informacion de seguridad aprobada sobre CardioX",
+    )
+
+    assert result.blocked_reason == "INSUFFICIENT_SOURCES"
+    assert result.delivered is False, "una respuesta vacía no está entregada"
+    assert "INSUFFICIENT_EVIDENCE_MUST_ADMIT" in result.policy_codes
+
+    # Una negativa honesta es el comportamiento correcto, no un incidente: no
+    # inunda la cola de compliance con casos en los que el sistema acertó.
+    assert result.requires_human_review is False
+
+    # Y los motivos sobreviven. Un «no» sin explicación es indistinguible de un
+    # fallo del sistema para quien pregunta.
+    assert result.output is not None
+    assert result.output.gaps
+
+    step = next(
+        s for s in result.trace.steps if s.name == "empty_answer_is_a_refusal"
+    )
+    assert step.output_summary["declared_by_model"] is False
+
+
 def test_prompt_injection_in_a_document_is_flagged_not_executed(
     nova_session: Session, tenant_ids: dict[str, str]
 ) -> None:

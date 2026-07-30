@@ -64,14 +64,29 @@ _AUDIT_ACTIONS: dict[str, str] = {
 def _payload_of(result: AgentResult) -> dict[str, Any]:
     """Cuerpo estructurado listo para `jsonb`.
 
-    Una salida bloqueada tiene `output = None`. Se guarda igualmente, con el
-    motivo: **un bloqueo es un resultado, no la ausencia de uno**. Si no se
-    guardara, la única evidencia de que el sistema frenó algo sería el log, y la
-    pantalla de auditoría no podría enseñar qué se frenó ni por qué.
+    **Un bloqueo es un resultado, no la ausencia de uno.** Si no se guardara, la
+    única evidencia de que el sistema frenó algo sería el log, y la pantalla de
+    auditoría no podría enseñar qué se frenó ni por qué.
+
+    Hay dos clases de bloqueo y se distinguen por si hay salida.
+
+    Sin salida —política de solicitud, evidencia insuficiente antes de llamar al
+    modelo, proveedor caído— solo queda el motivo.
+
+    Con salida es el caso de la negativa: el modelo respondió que no puede
+    responder, y esa respuesta contiene los `gaps` que explican qué falta. Se
+    conserva entera. Guardar solo `{"blocked": true}` convertiría un «no hay
+    material aprobado sobre esta cifra concreta» en un «no» sin motivo, que es
+    inútil para quien pregunta e indistinguible de un fallo del sistema.
     """
     if result.output is None:
         return {"blocked": True, "reason": result.blocked_reason}
-    return result.output.model_dump(mode="json")
+
+    payload = result.output.model_dump(mode="json")
+    if result.blocked_reason:
+        payload["blocked"] = True
+        payload["reason"] = result.blocked_reason
+    return payload
 
 
 def _confidence_of(result: AgentResult) -> int:

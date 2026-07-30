@@ -370,6 +370,66 @@ class AgentRunner:
             )
 
         answer_text = _extract_answer_text(output)
+        cited_sources = list(getattr(output, "sources", None) or [])
+
+        # ── 6b. Negativa: se deduce, no se acepta de palabra ──────────────────
+        #
+        # Un modelo que no puede responder tiene dos maneras de decirlo: dejar
+        # la respuesta vacía y explicar en `gaps` lo que falta, o declararlo
+        # rellenando `blocked_reason`. La primera es la que sale de forma
+        # natural; la segunda requiere que se acuerde del campo.
+        #
+        # Medido con el mismo modelo y la misma pregunta en dos ejecuciones: una
+        # vez declaró `INSUFFICIENT_SOURCES` y otra no, y las dos veces la
+        # respuesta estaba igual de vacía. Confiando en la declaración, la
+        # segunda se entregó como `delivered: true` con el cuerpo vacío: el
+        # sistema afirmaba haber respondido algo que no existía.
+        #
+        # Que una negativa quede registrada como negativa no puede depender de
+        # que el modelo la confiese. Se deduce de lo que hay: sin texto, no se
+        # ha respondido. Es el mismo criterio que aplica `evaluate_response`,
+        # que juzga el texto generado y no los campos que el modelo dice de sí
+        # mismo.
+        #
+        # La condición es solo sobre el texto, **no** sobre las fuentes. El
+        # primer intento exigía además que no hubiera fuentes citadas, y una
+        # tercera ejecución de la misma pregunta devolvió respuesta vacía *con*
+        # dos fuentes citadas, así que volvió a colarse como entregada. Citar
+        # documentos sin decir nada sobre ellos no es una respuesta a medias:
+        # es una negativa que además reclama procedencia para el vacío.
+        if not answer_text.strip():
+            trace.record(
+                "policy_check", "empty_answer_is_a_refusal", status="block",
+                output_summary={
+                    "declared_by_model": bool(
+                        getattr(output, "blocked_reason", None)
+                    ),
+                    "gaps": len(getattr(output, "gaps", None) or []),
+                    # Fuentes citadas sin texto que las use. Se registra porque
+                    # es la variante que se coló: parecía una respuesta con
+                    # procedencia y no había respuesta.
+                    "sources_without_text": len(cited_sources),
+                },
+            )
+            return result(
+                output=output,
+                chunks=chunks,
+                blocked_reason="INSUFFICIENT_SOURCES",
+                # Una negativa honesta es el comportamiento correcto, no un
+                # incidente. Mandar a compliance cada «no lo sé» inundaría la
+                # cola de casos en los que el sistema acertó, y el efecto
+                # práctico sería que se dejara de mirar.
+                requires_human_review=False,
+                policy_codes=[
+                    *request_decision.codes,
+                    *injection.codes,
+                    "INSUFFICIENT_EVIDENCE_MUST_ADMIT",
+                ],
+                cost_eur=response.cost_eur,
+                latency_ms=response.latency_ms,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+            )
 
         # ── 7. Verificación adversarial ──────────────────────────────────────
         verdict: VerifierOutput | None = None
@@ -388,7 +448,7 @@ class AgentRunner:
             session,
             tenant_id=tenant_id,
             answer=answer_text,
-            source_count=len(getattr(output, "sources", []) or []),
+            source_count=len(cited_sources),
         )
         trace.record(
             "policy_check", "response", status=response_decision.action,

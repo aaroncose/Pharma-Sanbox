@@ -145,12 +145,39 @@ async def handle_domain_error(request: Request, exc: DomainError) -> JSONRespons
 async def handle_validation_error(
     _request: Request, exc: RequestValidationError
 ) -> JSONResponse:
+    """Traduce un fallo de validación a 422 con un detalle publicable.
+
+    Se construye la lista campo a campo en lugar de serializar `exc.errors()`
+    tal cual, por dos motivos distintos y ambos importantes.
+
+    **Correción.** Cuando un `field_validator` propio lanza `ValueError`,
+    Pydantic incluye el objeto de la excepción dentro de `ctx`, que no es
+    serializable a JSON. El resultado era que *cualquier* validador propio de la
+    aplicación devolvía 500 en vez de 422: el error que el código detectaba
+    correctamente se convertía en un fallo del servidor. Se descubrió con el
+    motivo de una decisión de compliance formado solo por espacios.
+
+    **Minimización.** `exc.errors()` incluye `input`, es decir, el valor que
+    envió el cliente. Devolverlo significa reflejar en la respuesta —y en
+    cualquier log que la recoja— el contenido rechazado, que aquí puede ser el
+    cuerpo de un documento o unas notas de visita. El cliente ya sabe qué
+    mandó; lo que necesita es saber qué campo está mal y por qué.
+    """
     return JSONResponse(
         status_code=422,
         content={
             "code": "VALIDATION_FAILED",
             "message": "Los datos enviados no son válidos",
-            "details": {"errors": exc.errors()},
+            "details": {
+                "errors": [
+                    {
+                        "field": ".".join(str(part) for part in error["loc"][1:]),
+                        "type": error["type"],
+                        "message": error["msg"],
+                    }
+                    for error in exc.errors()
+                ]
+            },
         },
     )
 
