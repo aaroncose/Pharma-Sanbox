@@ -1,0 +1,52 @@
+[project]
+name = "pharma-sandbox-api"
+version = "0.1.0"
+description = "Pharma Commercial AI Sandbox — API y harness del agente"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 95
+target-version = "py312"
+src = ["."]
+
+[tool.ruff.lint]
+# `S` (bandit) está activado a propósito: en un proyecto cuyo argumento central
+# es la seguridad, un lint que avise de SQL construido por concatenación o de
+# secretos codificados vale más que en un proyecto corriente.
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # orden de imports
+    "N",         # convenciones de nombres
+    "UP",        # modernización de sintaxis
+    "B",         # bugbear
+    "S",         # seguridad (bandit)
+    "A",         # sombras de builtins
+    "C4",        # comprehensions
+    "RUF",       # reglas propias de ruff
+]
+ignore = [
+    # El proyecto documenta con comentarios en bloque explicando decisiones,
+    # no con docstrings en cada función pequeña.
+    "D",
+    # `assert` se usa en las pruebas, que es su sitio.
+    "S101",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "S105", "S106",  # contraseñas de prueba sintéticas
+    "ANN",           # las pruebas no necesitan anotaciones exhaustivas
+]
+"app/db/seed.py" = [
+    "S105", "S106",  # DEMO_PASSWORD es sintética y está documentada como tal
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers"
+filterwarnings = ["error::DeprecationWarning"]
