@@ -899,3 +899,140 @@ RETURNS TABLE (table_name text, rls_enabled boolean, policy_count bigint) AS $$
        AND (NOT c.relrowsecurity
             OR (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid) = 0);
 $$ LANGUAGE sql STABLE;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Atribución de recursos para auditoría
+--
+-- Problema: cuando alguien intenta alcanzar un recurso de otro cliente, el log
+-- debe registrar contra qué organización iba el intento. Pero el rol de la API
+-- no puede leer esa fila —para eso está RLS— y por tanto tampoco su tenant_id.
+-- Sin ese dato, el evento dice "acceso denegado a un identificador" y no
+-- "acceso denegado a un recurso de BioHealth", que es lo investigable.
+--
+-- Solución: una función SECURITY DEFINER que devuelve **exclusivamente** el
+-- tenant propietario. No devuelve ninguna otra columna, así que no es un canal
+-- de exfiltración: quien la llama ya conocía el identificador, y lo único que
+-- obtiene es la confirmación de que pertenece a otro cliente.
+--
+-- La lista de tablas está fijada dentro de la función y se valida antes de
+-- construir el SQL. Una SECURITY DEFINER que interpola un nombre de tabla
+-- recibido de fuera sería una escalada de privilegios directa.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION audit_resource_owner(p_table text, p_id uuid)
+RETURNS uuid AS $$
+DECLARE
+    allowed text[] := ARRAY[
+        'documents', 'interactions', 'agent_outputs', 'review_items',
+        'healthcare_professionals', 'products', 'tasks', 'simulations', 'users'
+    ];
+    owner uuid;
+BEGIN
+    IF NOT (p_table = ANY(allowed)) THEN
+        RAISE EXCEPTION 'tabla no permitida para atribución: %', p_table
+            USING ERRCODE = 'insufficient_privilege';
+    END IF;
+
+    EXECUTE format('SELECT tenant_id FROM %I WHERE id = $1', p_table)
+       INTO owner USING p_id;
+
+    RETURN owner;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   -- search_path fijo: sin esto, quien llame a la función podría anteponer un
+   -- esquema propio con una tabla `documents` falsa y hacer que se ejecute con
+   -- los privilegios del propietario.
+   SET search_path = public, pg_temp;
+
+REVOKE ALL ON FUNCTION audit_resource_owner(text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION audit_resource_owner(text, uuid) TO pharma_app;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Búsqueda de credenciales
+--
+-- El inicio de sesión es la única operación que ocurre legítimamente antes de
+-- saber a qué organización pertenece quien llama. RLS, correctamente, no deja
+-- leer `users` sin un tenant fijado, así que hace falta una vía acotada.
+--
+-- Alternativa descartada: conectar el endpoint de login con el rol propietario.
+-- Habría creado un camino permanente por el que la aplicación puede saltarse
+-- RLS, y bastaría un error futuro para que ese camino se usara para otra cosa.
+--
+-- Esta función es lo más estrecho posible:
+--   · Coincidencia exacta por correo normalizado. No admite patrones ni
+--     comodines, luego no sirve para enumerar la base de usuarios.
+--   · Devuelve una única fila y solo las columnas que el flujo necesita.
+--   · No filtra por estado: devuelve también usuarios suspendidos, para que la
+--     aplicación pueda distinguir "credenciales incorrectas" de "cuenta
+--     desactivada" en la auditoría, respondiendo lo mismo hacia fuera.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION auth_lookup_user(p_email text)
+RETURNS TABLE (
+    id            uuid,
+    tenant_id     uuid,
+    email         text,
+    full_name     text,
+    role          user_role,
+    status        user_status,
+    password_hash text,
+    tenant_slug   text,
+    tenant_name   text,
+    tenant_status tenant_status
+) AS $$
+    SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.status,
+           u.password_hash, t.slug, t.name, t.status
+      FROM users u
+      JOIN tenants t ON t.id = u.tenant_id
+     WHERE lower(u.email) = lower(p_email)
+       AND u.deleted_at IS NULL
+     LIMIT 1;
+$$ LANGUAGE sql STABLE SECURITY DEFINER
+   SET search_path = public, pg_temp;
+
+REVOKE ALL ON FUNCTION auth_lookup_user(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION auth_lookup_user(text) TO pharma_app;
+
+-- Registro del último acceso. Misma razón: ocurre durante el login, cuando la
+-- sesión todavía no tiene tenant.
+CREATE OR REPLACE FUNCTION auth_touch_last_login(p_user_id uuid)
+RETURNS void AS $$
+    UPDATE users SET last_login_at = now() WHERE id = p_user_id;
+$$ LANGUAGE sql SECURITY DEFINER
+   SET search_path = public, pg_temp;
+
+REVOKE ALL ON FUNCTION auth_touch_last_login(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION auth_touch_last_login(uuid) TO pharma_app;
+
+-- Búsqueda por identificador, para la renovación de sesión.
+--
+-- Mismo problema que `auth_lookup_user`: la renovación ocurre antes de fijar el
+-- tenant, porque el tenant se deriva del propio usuario que se está validando.
+-- Sin esta función, RLS devuelve cero filas y la renovación rechaza sesiones
+-- legítimas — un fallo que se manifiesta como "tu sesión ya no es válida" cada
+-- treinta minutos y que es muy difícil de diagnosticar desde fuera.
+--
+-- No devuelve `password_hash`: la renovación no lo necesita.
+CREATE OR REPLACE FUNCTION auth_lookup_user_by_id(p_user_id uuid)
+RETURNS TABLE (
+    id            uuid,
+    tenant_id     uuid,
+    email         text,
+    full_name     text,
+    role          user_role,
+    status        user_status,
+    tenant_slug   text,
+    tenant_name   text,
+    tenant_status tenant_status
+) AS $$
+    SELECT u.id, u.tenant_id, u.email, u.full_name, u.role, u.status,
+           t.slug, t.name, t.status
+      FROM users u
+      JOIN tenants t ON t.id = u.tenant_id
+     WHERE u.id = p_user_id
+       AND u.deleted_at IS NULL;
+$$ LANGUAGE sql STABLE SECURITY DEFINER
+   SET search_path = public, pg_temp;
+
+REVOKE ALL ON FUNCTION auth_lookup_user_by_id(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION auth_lookup_user_by_id(uuid) TO pharma_app;

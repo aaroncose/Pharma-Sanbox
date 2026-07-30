@@ -19,9 +19,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.api.v1 import api_router
 from app.config import settings
 from app.core.errors import DomainError
 from app.core.logging import configure_logging, get_logger
+from app.core.ratelimit import get_rate_limiter
 from app.db.session import assert_rls_enforced
 
 configure_logging(settings.log_level, json_output=settings.is_production_like)
@@ -37,13 +39,20 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     y arrancar sería peor que no arrancar.
     """
     role_info = assert_rls_enforced()
+    # Redis no bloquea el arranque: el limitador degrada permitiendo y el
+    # almacén de sesiones degrada denegando. Ambos comportamientos son
+    # correctos sin Redis, así que no arrancar sería peor.
+    redis_ok = get_rate_limiter().ping()
     log.info(
         "startup",
         env=settings.app_env,
         db_role=role_info["role_name"],
         rls_enforced=True,
+        redis=("ok" if redis_ok else "unavailable"),
         llm_provider="anthropic" if settings.llm_uses_real_provider else "mock",
     )
+    if not redis_ok:
+        log.warning("redis_unavailable_at_startup", impact="rate limiting deshabilitado")
     yield
     log.info("shutdown")
 
@@ -163,6 +172,9 @@ async def handle_unexpected_error(request: Request, exc: Exception) -> JSONRespo
 async def healthz() -> dict[str, str]:
     """Vivo. No comprueba dependencias: sirve para el supervisor de procesos."""
     return {"status": "ok", "environment": "DEMO — SYNTHETIC DATA ONLY"}
+
+
+app.include_router(api_router)
 
 
 @app.get("/readyz", tags=["system"])

@@ -10,7 +10,7 @@ PGBIN := /usr/local/opt/postgresql@17/bin
 API_PORT ?= 8010
 
 .DEFAULT_GOAL := help
-.PHONY: help setup setup-native install api web dev migrate seed reset-db test test-isolation eval lint fmt logs stop status
+.PHONY: help setup setup-native install api web dev migrate seed reset-db test test-isolation eval lint fmt logs stop status docs bootstrap-db
 
 help: ## Muestra esta ayuda
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -69,6 +69,12 @@ seed: ## Carga los datos sintéticos de demostración
 reset-db: ## Borra y reconstruye la base de datos completa
 	$(PY) -m app.db.migrate --drop
 	$(MAKE) seed
+
+docs: ## Regenera la documentación que se deriva del código
+	$(PY) scripts/gen_permissions_matrix.py
+
+bootstrap-db: ## Crea roles y extensiones (requiere superusuario de PostgreSQL)
+	$(PGBIN)/psql -d pharma_sandbox -v ON_ERROR_STOP=1 -f scripts/bootstrap-db.sql
 
 # ── Calidad ──────────────────────────────────────────────────────────────────
 
