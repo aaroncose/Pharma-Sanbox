@@ -1,0 +1,81 @@
+# Ruta portable del entorno de desarrollo.
+#
+# En la máquina donde se construyó este proyecto no hay Docker: PostgreSQL 17
+# con pgvector y Redis corren nativos vía Homebrew (ver `make setup-native`).
+# Este fichero existe para que el proyecto sea reproducible en cualquier otra
+# máquina sin depender de Homebrew, y para documentar la topología real de
+# servicios de forma ejecutable.
+#
+#   docker compose up -d db redis
+#   make migrate seed
+#   make api web
+
+name: pharma-sandbox
+
+services:
+  db:
+    # La imagen de pgvector es Postgres oficial + la extensión ya compilada.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: pharma_owner
+      POSTGRES_PASSWORD: pharma_owner_dev
+      POSTGRES_DB: pharma_sandbox
+      # Necesario para que las comparaciones de texto ordenen igual que en
+      # el entorno nativo y las pruebas no diverjan por locale.
+      LANG: en_US.UTF-8
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Crea el rol restringido de aplicación en el primer arranque.
+      # Sin él, la API se conectaría como propietario y RLS no se aplicaría.
+      - ./scripts/db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pharma_owner -d pharma_sandbox"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://pharma_app:pharma_app_dev@db:5432/pharma_sandbox
+      MIGRATION_DATABASE_URL: postgresql+psycopg://pharma_owner:pharma_owner_dev@db:5432/pharma_sandbox
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8010:8010"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["full"]
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8010
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    profiles: ["full"]
+
+volumes:
+  pgdata:
