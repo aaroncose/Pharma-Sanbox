@@ -34,6 +34,7 @@ from app.db.seed_corpus import (
 )
 from app.db.session import create_privileged_engine
 from app.policies.catalog import ALL_POLICIES
+from app.services import library
 
 log = get_logger("seed")
 
@@ -276,25 +277,13 @@ def parse_prompt_file(path: Path) -> dict[str, Any]:
     }
 
 
-def chunk_document(body: str) -> list[tuple[str | None, str]]:
-    """Divide el documento por secciones marcadas con `§`.
-
-    Se trocea por estructura y no por número de caracteres a propósito: en este
-    corpus las secciones son unidades semánticas reales («§ 4.8. Seguridad»), y
-    conservarlas permite citar la sección exacta en la interfaz. Un troceado por
-    ventana fija partiría una sección de seguridad por la mitad y produciría
-    citas que no se sostienen solas.
-    """
-    parts = re.split(r"\n(?=§)", body.strip())
-    chunks: list[tuple[str | None, str]] = []
-    for part in parts:
-        content = part.strip()
-        if not content:
-            continue
-        header = content.splitlines()[0]
-        section = header.lstrip("§ ").strip() if header.startswith("§") else None
-        chunks.append((section, content))
-    return chunks
+# El troceado vive en `app.services.library`, no aquí.
+#
+# Lo usan dos caminos: el sembrado inicial y el alta de documentos por la API.
+# Si cada uno tuviera el suyo, acabarían divergiendo, y un documento subido por
+# la interfaz se trocearía distinto que el mismo documento sembrado. Las citas
+# dejarían de ser comparables entre sí sin que nada fallara de forma visible.
+chunk_document = library.chunk_document
 
 
 def to_vector_literal(values: list[float]) -> str:

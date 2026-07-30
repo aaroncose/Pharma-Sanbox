@@ -25,7 +25,17 @@ tabla de capacidades no sea una abstracción prematura:
     dependa del modelo configurado.
   · `thinking.display` por defecto es `"omitted"`: los bloques de pensamiento
     llegan vacíos. Se pide `"summarized"` porque las trazas del agente son un
-    entregable del proyecto.
+    entregable del proyecto. **Pedirlo no garantiza recibirlo**: con pensamiento
+    adaptativo es el modelo quien decide cuánto razona, y puede decidir que
+    cero. Medido con la misma petición y el mismo prompt de razonamiento:
+
+        claude-opus-4-8  -> bloques ['thinking', 'text'], thinking_tokens 139
+        claude-sonnet-5  -> bloques ['text'],             thinking_tokens 0
+
+    Por eso `LLMUsage.thinking_tokens` se registra siempre. Sin ese número, una
+    traza sin razonamiento es ambigua: no se puede distinguir un modelo que
+    decidió no razonar de un fallo al capturar el bloque. Con él, la traza
+    afirma cuál de las dos cosas pasó.
 
 Sin credencial, el proveedor mock determinista ocupa su lugar con el mismo
 contrato. No es un stub de pruebas: es lo que permite que la demostración y las
@@ -147,6 +157,11 @@ class LLMUsage:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    # Desglose de `output_tokens`, NO un sumando aparte: el razonamiento ya
+    # viene facturado dentro de la salida. Se guarda para poder distinguir en la
+    # traza "el modelo no razonó" de "el razonamiento se perdió por el camino",
+    # que desde una casilla vacía se ven igual.
+    thinking_tokens: int = 0
 
     def cost_eur(self, caps: ModelCapabilities) -> float:
         """Coste aproximado en euros.
@@ -361,6 +376,12 @@ class AnthropicProvider(LLMProvider):
             cache_write_tokens=(
                 getattr(message.usage, "cache_creation_input_tokens", 0) or 0
             ),
+            thinking_tokens=getattr(
+                getattr(message.usage, "output_tokens_details", None),
+                "thinking_tokens",
+                0,
+            )
+            or 0,
         )
 
         parsed: dict[str, Any] | None = None
