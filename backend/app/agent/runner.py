@@ -437,27 +437,49 @@ class AgentRunner:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# Campos de texto plano y campos-lista-de-objetos que contienen afirmaciones.
+# Se enumeran explícitamente y no por introspección: un campo nuevo que deba
+# verificarse tiene que añadirse aquí a conciencia. La alternativa —recorrer
+# todo lo que sea texto— metería en el verificador cosas como `blocked_reason` o
+# los `concern`, que son juicios del propio sistema y no afirmaciones a
+# comprobar.
+_TEXT_FIELDS = ("answer", "hcp_summary", "summary")
+_STATEMENT_FIELDS = (
+    "permitted_information",
+    "recommended_topics",
+    "likely_questions",
+    # Del resumen de visita: los compromisos del comercial son exactamente las
+    # afirmaciones que hay que contrastar. Faltaban, y como el resumen no tiene
+    # campo `answer`, `_extract_answer_text` devolvía cadena vacía y el paso de
+    # verificación se saltaba entero sin que nada lo señalara.
+    "rep_commitments",
+)
+_STATEMENT_KEYS = ("statement", "topic", "rationale", "suggested_answer")
+
+
 def _extract_answer_text(output: BaseModel) -> str:
     """Texto que el verificador y las políticas deben examinar.
 
     Se concatenan todos los campos textuales relevantes de la salida, no solo
     `answer`. En un briefing la afirmación arriesgada suele estar en
     `permitted_information` o en una respuesta sugerida, no en el resumen.
+
+    Devolver cadena vacía tiene una consecuencia fuerte: el verificador no se
+    ejecuta. Por eso una salida cuyo texto no se sepa extraer no es un caso
+    neutro, es un control que se apaga solo.
     """
     parts: list[str] = []
     data = output.model_dump()
 
-    for key in ("answer", "hcp_summary"):
-        if value := data.get(key):
+    for field_name in _TEXT_FIELDS:
+        if value := data.get(field_name):
             parts.append(str(value))
 
-    for key in ("permitted_information", "recommended_topics", "likely_questions"):
-        for item in data.get(key) or []:
+    for field_name in _STATEMENT_FIELDS:
+        for item in data.get(field_name) or []:
             if isinstance(item, dict):
                 parts.extend(
-                    str(item[key])
-                    for key in ("statement", "topic", "rationale", "suggested_answer")
-                    if item.get(key)
+                    str(item[k]) for k in _STATEMENT_KEYS if item.get(k)
                 )
 
     return "\n".join(parts)

@@ -157,6 +157,15 @@ def record(session: Session, event: AuditEvent) -> str | None:
     operación de negocio ni, peor, convertir un acceso denegado en un error 500
     que oculte la denegación. El fallo se registra en el log operativo con
     nivel crítico, que es donde debe verse.
+
+    **La escritura va dentro de un `SAVEPOINT`.** Atrapar la excepción no basta:
+    en PostgreSQL un statement fallido aborta la transacción entera, así que
+    tragarse el error sin más no aísla nada —envenena todo lo que venga después,
+    que empieza a fallar con `InFailedSqlTransaction`—. El resultado sería lo
+    contrario de lo que promete el docstring: en lugar de que un fallo de
+    auditoría no afecte a la operación, la operación se pierde entera y aun así
+    responde 200. El punto de guardado revierte solo esta inserción y deja la
+    transacción utilizable.
     """
     event_id = str(uuid.uuid4())
     params = {
@@ -185,7 +194,8 @@ def record(session: Session, event: AuditEvent) -> str | None:
         "detail": json.dumps(event.detail, ensure_ascii=False),
     }
     try:
-        session.execute(_INSERT, params)
+        with session.begin_nested():
+            session.execute(_INSERT, params)
         return event_id
     except Exception:
         log.critical(

@@ -96,6 +96,14 @@ async def trace_requests(
     puede reconstruir la cadena completa de decisiones.
     """
     request_id = request.headers.get("X-Request-Id") or f"tr_{uuid.uuid4().hex[:12]}"
+    # Se deja en el estado de la petición, no solo en la cabecera de respuesta.
+    #
+    # Antes solo viajaba de vuelta, y la dependencia `get_trace_id` lo buscaba
+    # en la cabecera *entrante*: como ningún cliente la envía, el identificador
+    # de traza era literalmente `tr_unknown` en todas las peticiones. Además de
+    # dejar la auditoría sin correlación, hacía que la segunda ejecución del
+    # agente chocara contra `UNIQUE (trace_id, step)` de `agent_traces`.
+    request.state.request_id = request_id
     structlog.contextvars.bind_contextvars(request_id=request_id)
     started = time.perf_counter()
     try:

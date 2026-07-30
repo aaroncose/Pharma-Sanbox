@@ -264,6 +264,17 @@ def test_nonexistent_id_is_indistinguishable_from_cross_tenant(
 
 
 def test_each_tenant_only_lists_its_own_interactions(client: TestClient) -> None:
+    """Los dos conjuntos son disjuntos, y ninguno está vacío.
+
+    Antes esta prueba afirmaba 30 y 20, los números del sembrado. Falló en
+    cuanto el endpoint de resumen de visita registró una interacción real: el
+    sistema funcionaba y la prueba decía lo contrario. Un número exacto obliga a
+    que ninguna otra prueba escriba nunca, que es una condición imposible de
+    sostener y que además no es lo que aquí se comprueba.
+
+    La propiedad bajo prueba es el aislamiento —que ningún identificador de una
+    organización aparezca en la otra—, y esa se mantiene con cualquier volumen.
+    """
     nova = client.get(
         "/api/v1/interactions?limit=100", headers=auth(token_for(client, LAURA))
     ).json()
@@ -271,8 +282,10 @@ def test_each_tenant_only_lists_its_own_interactions(client: TestClient) -> None
         "/api/v1/interactions?limit=100", headers=auth(token_for(client, SOFIA))
     ).json()
 
-    assert nova["count"] == 30
-    assert bio["count"] == 20
+    # Un conjunto vacío haría pasar la comprobación de disjunción sin demostrar
+    # nada: hay que confirmar que cada organización sí ve lo suyo.
+    assert nova["count"] > 0
+    assert bio["count"] > 0
 
     nova_ids = {item["id"] for item in nova["items"]}
     bio_ids = {item["id"] for item in bio["items"]}

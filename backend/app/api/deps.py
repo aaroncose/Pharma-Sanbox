@@ -44,9 +44,20 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_trace_id(request: Request) -> str:
-    # Lo fija el middleware de `main.py`; el valor por defecto solo aplica en
-    # pruebas que llaman a la dependencia directamente.
-    return request.headers.get("X-Request-Id") or "tr_unknown"
+    """Identificador que correlaciona auditoría, trazas del agente y respuesta.
+
+    Se lee del estado de la petición, donde lo deja el middleware. Leerlo de la
+    cabecera entrante —como se hacía— significaba depender de que el cliente la
+    enviara: ninguno lo hace, así que todas las peticiones compartían el valor
+    `tr_unknown`. El síntoma visible fue una violación de unicidad en
+    `agent_traces`; el daño silencioso era que ninguna auditoría se podía
+    correlacionar con nada.
+
+    Se conserva la cabecera como origen alternativo para que un cliente que sí
+    la envíe pueda enlazar su propia traza con la del servidor.
+    """
+    from_state = getattr(request.state, "request_id", None)
+    return from_state or request.headers.get("X-Request-Id") or "tr_unknown"
 
 
 def get_principal(

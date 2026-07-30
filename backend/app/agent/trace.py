@@ -89,32 +89,48 @@ class AgentTrace:
 
         Igual que en auditoría: un fallo al guardar la traza no puede tumbar la
         operación de negocio que sí funcionó.
+
+        **Dentro de un `SAVEPOINT`, y por un motivo aprendido de un fallo real.**
+        Atrapar la excepción no aísla nada: en PostgreSQL un statement fallido
+        aborta la transacción completa, de modo que un `except Exception` a secas
+        deja todo lo posterior fallando con `InFailedSqlTransaction`. Ocurrió: una
+        violación de unicidad al insertar el primer paso hizo que la salida del
+        agente, sus fuentes y su registro de auditoría se perdieran en silencio,
+        y el endpoint devolvió 200 con un cuerpo completo. Un fallo que no se
+        propaga no es un fallo aislado; solo es un fallo invisible.
+
+        Las trazas se escriben además como bloque: media traza persistida
+        parecería una ejecución que terminó donde no terminó.
         """
         try:
-            for index, step in enumerate(self.steps, start=1):
-                session.execute(
-                    text(
-                        "INSERT INTO agent_traces "
-                        "  (tenant_id, trace_id, step, step_type, name, status, "
-                        "   input_summary, output_summary, latency_ms) "
-                        "VALUES (CAST(NULLIF(:tenant_id,'') AS uuid), :trace_id, :step, "
-                        "        :step_type, :name, :status, CAST(:inp AS jsonb), "
-                        "        CAST(:out AS jsonb), :latency_ms)"
-                    ),
-                    {
-                        "tenant_id": self.tenant_id or "",
-                        "trace_id": self.trace_id,
-                        "step": index,
-                        "step_type": step.step_type,
-                        "name": step.name,
-                        "status": step.status,
-                        "inp": json.dumps(step.input_summary, ensure_ascii=False),
-                        "out": json.dumps(step.output_summary, ensure_ascii=False),
-                        "latency_ms": step.latency_ms,
-                    },
-                )
+            with session.begin_nested():
+                self._write(session)
         except Exception:
             log.critical("trace_write_failed", trace_id=self.trace_id, exc_info=True)
+
+    def _write(self, session: Session) -> None:
+        for index, step in enumerate(self.steps, start=1):
+            session.execute(
+                text(
+                    "INSERT INTO agent_traces "
+                    "  (tenant_id, trace_id, step, step_type, name, status, "
+                    "   input_summary, output_summary, latency_ms) "
+                    "VALUES (CAST(NULLIF(:tenant_id,'') AS uuid), :trace_id, :step, "
+                    "        :step_type, :name, :status, CAST(:inp AS jsonb), "
+                    "        CAST(:out AS jsonb), :latency_ms)"
+                ),
+                {
+                    "tenant_id": self.tenant_id or "",
+                    "trace_id": self.trace_id,
+                    "step": index,
+                    "step_type": step.step_type,
+                    "name": step.name,
+                    "status": step.status,
+                    "inp": json.dumps(step.input_summary, ensure_ascii=False),
+                    "out": json.dumps(step.output_summary, ensure_ascii=False),
+                    "latency_ms": step.latency_ms,
+                },
+            )
 
 
 class timed:  # noqa: N801 — se usa como `with timed() as t:`
