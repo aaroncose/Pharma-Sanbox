@@ -57,8 +57,14 @@ class Settings(BaseSettings):
     # ── Proveedor de IA ──────────────────────────────────────────────────────
     llm_provider: Literal["anthropic", "mock"] = "anthropic"
     anthropic_api_key: str = ""
-    llm_primary_model: str = "claude-sonnet-5"
-    llm_verifier_model: str = "claude-haiku-4-5-20251001"
+    # Generador principal. Opus 4.8 es el modelo más capaz de su nivel y el
+    # que corresponde por defecto; es configurable por si se prefiere
+    # Sonnet 5 por coste (`claude-sonnet-5`).
+    llm_primary_model: str = "claude-opus-4-8"
+    # Verificador: modelo distinto y más barato, a propósito. Su tarea es
+    # refutar, no generar, y un segundo par de ojos independiente vale más
+    # que un segundo par de ojos idéntico.
+    llm_verifier_model: str = "claude-haiku-4-5"
     llm_timeout_seconds: float = 30.0
     llm_max_retries: int = 3
 
