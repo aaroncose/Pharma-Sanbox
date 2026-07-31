@@ -59,8 +59,7 @@ make setup            # entorno virtual, dependencias, .env, esquema y datos
 # Opción B — contenedores
 docker compose up -d db redis
 make setup
-
-make dev              # API en :8010, frontend en :3000
+make dev
 ```
 
 Comprobación:
