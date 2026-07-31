@@ -207,6 +207,7 @@ TASK_PERMISSIONS: dict[str, str] = {
     "chat": CHAT_USE,
     "meeting_summary": SUMMARY_CREATE,
     "simulator": SIMULATION_USE,
+    "simulation_debrief": SIMULATION_USE,
     # El verificador es un paso interno del harness, no una acción de usuario.
     "verifier": "",
 }
@@ -221,6 +222,10 @@ TASK_TOOLSETS: dict[str, tuple[str, ...]] = {
     ),
     "chat": ("search_documents", "request_human_review"),
     "meeting_summary": ("search_documents", "create_draft", "create_task"),
+    # El informe posterior SÍ recibe la biblioteca: para decir qué fuente
+    # debería haberse citado hay que saber cuál existía. Es la otra mitad de la
+    # asimetría con el simulador, que no puede conocerla.
+    "simulation_debrief": ("search_documents",),
     # El simulador interpreta a un profesional sanitario: no tiene acceso a la
     # biblioteca documental a propósito. Un médico real no ha leído el material
     # comercial aprobado, y si lo conociera haría preguntas antinaturalmente

@@ -513,8 +513,18 @@ _STATEMENT_FIELDS = (
     # campo `answer`, `_extract_answer_text` devolvía cadena vacía y el paso de
     # verificación se saltaba entero sin que nada lo señalara.
     "rep_commitments",
+    # Del informe de simulación: una reformulación propuesta es una frase que
+    # el comercial va a usar literalmente. Si no está respaldada, el informe de
+    # entrenamiento le enseña exactamente lo que el sistema existe para evitar.
+    "improvable_answers",
 )
-_STATEMENT_KEYS = ("statement", "topic", "rationale", "suggested_answer")
+_STATEMENT_KEYS = (
+    "statement",
+    "topic",
+    "rationale",
+    "suggested_answer",
+    "suggested_rewrite",
+)
 
 
 def _extract_answer_text(output: BaseModel) -> str:

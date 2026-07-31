@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import agent, audit, auth, interactions, library, review
+from app.api.v1 import (
+    agent,
+    audit,
+    auth,
+    interactions,
+    library,
+    review,
+    simulation,
+)
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
@@ -13,5 +21,6 @@ api_router.include_router(library.router)
 api_router.include_router(agent.router)
 api_router.include_router(review.router)
 api_router.include_router(audit.router)
+api_router.include_router(simulation.router)
 
 __all__ = ["api_router"]

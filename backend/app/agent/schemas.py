@@ -446,6 +446,84 @@ class VerifierOutput(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class ImprovableAnswer(BaseModel):
+    # Anulable a propósito. Medido con el modelo real: al informar sobre una
+    # simulación, señaló como mejorable el turno 5, que era del **médico** —el
+    # comercial nunca dijo esa frase—. La observación de fondo era válida (dejó
+    # una pregunta sin responder), pero anclada a una línea ajena.
+    #
+    # Se anula en lugar de descartarse porque el contenido sigue siendo feedback
+    # útil; lo que no puede es apuntar a algo que el comercial no dijo. Una
+    # interfaz que muestra «tu respuesta del turno 5» sobre la frase del médico
+    # destruye la confianza en todo el informe.
+    turn_ordinal: int | None = Field(
+        default=None,
+        description=(
+            "Número del turno DEL COMERCIAL que conviene reformular. Debe ser "
+            "uno de los turnos marcados como COMERCIAL en la transcripción; "
+            "nulo si la observación no corresponde a un turno concreto."
+        ),
+    )
+    what_was_said: str = Field(description="Lo que dijo, resumido")
+    why: str = Field(description="Qué problema tiene")
+    suggested_rewrite: str = Field(
+        description=(
+            "Cómo decirlo de forma sostenible con documentación aprobada. Debe "
+            "ser una frase que el comercial pueda usar literalmente."
+        )
+    )
+
+
+class SimulationFeedback(AgentEnvelope):
+    """Informe posterior a la simulación.
+
+    Hereda de `AgentEnvelope` porque **cita documentación aprobada**: cada
+    reformulación propuesta tiene que estar respaldada por material real, y eso
+    lo somete a las mismas políticas y al mismo verificador que cualquier otra
+    salida. Un informe de entrenamiento que sugiere una frase sin respaldo
+    enseña al comercial exactamente lo que el sistema existe para evitar.
+
+    **No incluye la puntuación de cumplimiento.** El modelo evalúa la
+    comunicación —claridad, estructura, si preguntó antes de responder—, que es
+    un juicio cualitativo y es su terreno. La parte de cumplimiento la cuenta el
+    código a partir de las marcas que el motor de políticas dejó turno a turno.
+
+    Pedirle al modelo una única cifra de 0 a 100 produciría un número que parece
+    preciso, no es reproducible entre ejecuciones y mezcla dos cosas que se
+    comprueban de manera distinta. Un comercial al que se le dice «77» tiene
+    derecho a saber de dónde sale; con las marcas contadas puede verlo.
+    """
+
+    communication_score: int = Field(
+        default=0,
+        ge=0,
+        le=100,
+        description=(
+            "Calidad de la comunicación: claridad, estructura, escucha, si pidió "
+            "contexto antes de responder. rango permitido: 0..100"
+        ),
+    )
+    communication_summary: str = Field(
+        default="",
+        description="Dos o tres palabras que resuman el estilo, p. ej. 'clara y estructurada'",
+    )
+    strengths: list[str] = Field(
+        default_factory=list,
+        description="Qué hizo bien, en segunda persona y concreto",
+    )
+    improvable_answers: list[ImprovableAnswer] = Field(
+        default_factory=list,
+        description="Respuestas que conviene reformular, con la reformulación",
+    )
+    handled_out_of_bounds_well: bool = Field(
+        default=False,
+        description=(
+            "Cierto si, ante una pregunta que no podía responder, reconoció el "
+            "límite en lugar de improvisar"
+        ),
+    )
+
+
 class SimulatorTurn(BaseModel):
     utterance: str = Field(
         description=(
@@ -579,4 +657,5 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "meeting_summary": MeetingSummaryOutput,
     "verifier": VerifierOutput,
     "simulator": SimulatorTurn,
+    "simulation_debrief": SimulationFeedback,
 }
