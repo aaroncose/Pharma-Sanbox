@@ -574,7 +574,41 @@ def build_mock_payload(
     """
     if schema is None:
         return {"answer": "Respuesta determinista del proveedor simulado."}
-    return _instantiate(schema, rng, depth=0)
+
+    payload = _instantiate(schema, rng, depth=0)
+
+    # Sin material recuperado, el mock declina en lugar de inventar citas.
+    #
+    # Antes rellenaba `sources` con cadenas sintéticas pasara lo que pasara, y
+    # eso hacía que se comportara como el modelo que el sistema existe para
+    # evitar: afirmaba con fuentes cuando no había ninguna. En la suite de
+    # evaluación los ocho casos de fidelidad y aislamiento suspendían por este
+    # motivo, midiendo un defecto del proveedor simulado en lugar de una
+    # propiedad del sistema.
+    #
+    # No es hacer trampa para que salgan verdes: la recuperación es real y ya ha
+    # devuelto cero fragmentos cuando se llega aquí. Lo que se corrige es que el
+    # mock respete su contexto, que es la condición para que sirva de banco de
+    # pruebas.
+    if isinstance(payload, dict) and _NO_DOCUMENTS_MARKER in user:
+        for field in ("sources", "used_excerpts", "supporting_sources"):
+            if field in payload:
+                payload[field] = []
+        for field in ("answer", "hcp_summary", "summary"):
+            if field in payload:
+                payload[field] = ""
+        if "gaps" in payload:
+            payload["gaps"] = [
+                "No hay material aprobado y vigente que cubra esta consulta."
+            ]
+        if "confidence" in payload:
+            payload["confidence"] = 0
+
+    return payload
+
+
+# Lo que `retrieval.format_for_prompt` emite cuando no recupera nada.
+_NO_DOCUMENTS_MARKER = "(no se ha recuperado ningún documento aprobado y vigente)"
 
 
 _BOUNDS_RE = re.compile(r"rango permitido:\s*(-?[\d.]+|inf)\.\.(-?[\d.]+|inf)")

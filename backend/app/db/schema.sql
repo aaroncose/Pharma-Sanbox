@@ -837,8 +837,18 @@ DO $$
 DECLARE
     t text;
     platform_tables text[] := ARRAY[
-        'prompt_versions', 'eval_datasets', 'eval_cases',
-        'eval_runs', 'eval_results', 'failure_scenarios'
+        'prompt_versions', 'failure_scenarios'
+    ];
+    -- Las tablas de evaluación admiten escritura también de compliance, que es
+    -- quien tiene `eval.run` en la matriz de permisos. Dejarlas solo para
+    -- plataforma haría que el permiso existiera en la aplicación y fallara en la
+    -- base de datos, que es la peor combinación: la interfaz ofrece el botón y
+    -- la operación revienta.
+    --
+    -- No son contenido de cliente: el conjunto es sintético y compartido, y por
+    -- eso la lectura es abierta y no hay columna de tenant que aislar.
+    quality_tables text[] := ARRAY[
+        'eval_datasets', 'eval_cases', 'eval_runs', 'eval_results'
     ];
 BEGIN
     FOREACH t IN ARRAY platform_tables LOOP
@@ -850,6 +860,21 @@ BEGIN
             CREATE POLICY %1$I_platform_write ON %1$I
                 FOR ALL USING (app_is_platform_admin())
                 WITH CHECK (app_is_platform_admin())
+        $p$, t);
+    END LOOP;
+
+    FOREACH t IN ARRAY quality_tables LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format($p$
+            CREATE POLICY %1$I_read ON %1$I FOR SELECT USING (true)
+        $p$, t);
+        EXECUTE format($p$
+            CREATE POLICY %1$I_quality_write ON %1$I
+                FOR ALL
+                USING (app_is_platform_admin()
+                       OR app_current_role() = 'compliance_officer')
+                WITH CHECK (app_is_platform_admin()
+                            OR app_current_role() = 'compliance_officer')
         $p$, t);
     END LOOP;
 END $$;

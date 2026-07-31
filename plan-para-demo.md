@@ -1,5 +1,3 @@
-Sí. Te lo diseño como una app B2B seria, limpia y con aspecto de producto regulado, no como un dashboard genérico de “IA”. La idea visual: **control, trazabilidad y seguridad**, con interfaz clara para comerciales y zonas más densas para compliance/auditoría.
-
 ## Dirección visual
 
 **Nombre visible:** `Pharma Commercial AI Sandbox`  

@@ -50,6 +50,17 @@ DEMO_PASSWORD = "Demo1234!"
 # caducado dejase de estarlo según el día en que se cargue.
 REFERENCE_TIME = datetime(2026, 7, 30, 9, 0, 0, tzinfo=UTC)
 
+# Identificador fijo de una interacción de BioHealth. Es el objetivo de la
+# prueba de fuga entre organizaciones del Failure Lab, que necesita apuntar a un
+# recurso que existe de verdad y pertenece a otro cliente.
+#
+# Publicarlo en el código no abre nada: el aislamiento lo aplica RLS sobre el
+# tenant de la sesión, no el desconocimiento del identificador. Un modelo de
+# seguridad que se apoyara en que los UUID no se conocen sería seguridad por
+# oscuridad, y esta constante existe precisamente para poder demostrar que no lo
+# es.
+CROSS_TENANT_PROBE_INTERACTION_ID = "b10f6a1e-0000-4000-8000-000000000001"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Definiciones de personas y organizaciones
@@ -512,15 +523,33 @@ def seed_all(conn: Connection) -> dict[str, int]:
         target = 30 if tenant_key == "novapharma" else 20
         for i in range(target):
             summary, topics, questions = interaction_templates[i % len(interaction_templates)]
+            # La primera interacción de BioHealth recibe un identificador fijo.
+            # Es el objetivo de la prueba 1 del Failure Lab, que necesita un
+            # recurso **real** de otra organización: probar contra un UUID
+            # inventado demostraría solo que se deniega lo inexistente, y la
+            # propiedad que hay que enseñar es que un recurso que sí existe y
+            # pertenece a otro cliente se deniega igual, sin filtrar siquiera
+            # que existe.
+            #
+            # Que el identificador sea conocido no debilita nada: el aislamiento
+            # no depende de que los identificadores sean secretos. Si dependiera,
+            # no sería aislamiento.
+            fixed_id = (
+                CROSS_TENANT_PROBE_INTERACTION_ID
+                if tenant_key == "biohealth" and i == 0
+                else None
+            )
             conn.execute(
                 text(
                     "INSERT INTO interactions "
-                    "  (tenant_id, hcp_id, user_id, product_id, occurred_at, channel, "
-                    "   topics, summary, open_questions) "
-                    "VALUES (:tenant_id, :hcp_id, :user_id, :product_id, :occurred_at, "
+                    "  (id, tenant_id, hcp_id, user_id, product_id, occurred_at, "
+                    "   channel, topics, summary, open_questions) "
+                    "VALUES (COALESCE(CAST(:id AS uuid), gen_random_uuid()), "
+                    "        :tenant_id, :hcp_id, :user_id, :product_id, :occurred_at, "
                     "        :channel, :topics, :summary, :open_questions)"
                 ),
                 {
+                    "id": fixed_id,
                     "tenant_id": tenant_ids[tenant_key],
                     "hcp_id": hcp_ids[hcp_names[i % len(hcp_names)]],
                     "user_id": user_ids[tenant_reps[i % len(tenant_reps)]],

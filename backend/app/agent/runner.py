@@ -35,7 +35,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.agent.prompts import get_prompt_registry
-from app.agent.provider import LLMResponse, get_provider
+from app.agent.provider import LLMProvider, LLMResponse, get_provider
 from app.agent.schemas import VerifierOutput, json_schema_for
 from app.agent.trace import AgentTrace, timed
 from app.config import settings
@@ -97,6 +97,7 @@ class AgentRunner:
         user: str,
         schema: dict[str, Any],
         trace: AgentTrace,
+        provider: LLMProvider | None = None,
     ) -> BaseModel | None:
         """Valida la salida y reintenta una vez si no valida.
 
@@ -125,7 +126,7 @@ class AgentRunner:
 
             with timed() as t:
                 try:
-                    retry = get_provider().complete(
+                    retry = (provider or get_provider()).complete(
                         system=system,
                         user=repair_prompt,
                         model=settings.llm_primary_model,
@@ -156,6 +157,7 @@ class AgentRunner:
         answer_text: str,
         chunks: list[RetrievedChunk],
         trace: AgentTrace,
+        provider: LLMProvider | None = None,
     ) -> VerifierOutput | None:
         """Segundo paso con un modelo distinto, en modo refutar.
 
@@ -174,7 +176,7 @@ class AgentRunner:
 
         with timed() as t:
             try:
-                response = get_provider().complete(
+                response = (provider or get_provider()).complete(
                     system="Eres un verificador adversarial de contenido farmacéutico.",
                     user=rendered,
                     model=settings.llm_verifier_model,
@@ -227,7 +229,17 @@ class AgentRunner:
         trace_id: str | None = None,
         retrieve: bool = True,
         verify: bool = True,
+        provider: LLMProvider | None = None,
     ) -> AgentResult:
+        """Ejecuta la tarea completa.
+
+        `provider` existe para la suite de evaluación, que necesita fijar el
+        proveedor sin tocar el global. La alternativa —sustituir el singleton
+        durante la ejecución— habría cambiado el proveedor de **todas** las
+        peticiones en vuelo mientras corre la suite, que en un servidor con
+        varias organizaciones trabajando a la vez es un efecto colateral
+        inaceptable a cambio de ahorrarse un parámetro.
+        """
         trace_id = trace_id or f"tr_{uuid.uuid4().hex[:12]}"
         trace = AgentTrace(trace_id, tenant_id)
         prompt = self.prompts.get(session, task, prompt_version)
@@ -241,7 +253,7 @@ class AgentRunner:
                 "prompt_name": prompt.name,
                 "prompt_version": prompt.version,
                 "model": settings.llm_primary_model,
-                "provider": get_provider().name,
+                "provider": (provider or get_provider()).name,
                 "latency_ms": trace.total_latency_ms,
                 "cost_eur": 0.0,
             }
@@ -321,7 +333,7 @@ class AgentRunner:
 
         with timed() as t:
             try:
-                response = get_provider().complete(
+                response = (provider or get_provider()).complete(
                     system=system,
                     user=rendered,
                     model=settings.llm_primary_model,
@@ -357,7 +369,7 @@ class AgentRunner:
         # ── 6. Validación y reparación ───────────────────────────────────────
         output = self._validate_or_repair(
             response=response, model_cls=model_cls, system=system,
-            user=rendered, schema=schema, trace=trace,
+            user=rendered, schema=schema, trace=trace, provider=provider,
         )
         if output is None:
             return result(
@@ -435,7 +447,8 @@ class AgentRunner:
         verdict: VerifierOutput | None = None
         if verify and answer_text.strip():
             verdict = self._verify(
-                session, answer_text=answer_text, chunks=chunks, trace=trace
+                session, answer_text=answer_text, chunks=chunks, trace=trace,
+                provider=provider,
             )
             if verdict is None:
                 # Sin verificación no se entrega como verificado.

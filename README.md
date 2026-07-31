@@ -27,7 +27,7 @@ conectado a un modelo.
 | 4 | Harness del agente | ⏳ |
 | 5 | Módulos funcionales | ⏳ |
 | 6 | Frontend | ⏳ |
-| 7 | Failure Lab y evaluaciones | ⏳ |
+| 7 | Failure Lab y evaluaciones | ✅ |
 | 8 | Documentación y entregables | ⏳ |
 
 ---

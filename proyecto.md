@@ -15,7 +15,6 @@ El sistema permitirá a un comercial:
 * Someter cualquier contenido sensible a revisión humana.
 * Mantener separados los datos de diferentes empresas farmacéuticas.
 
-El proyecto debe demostrar que el desarrollador sabe trabajar con agentes, backend, frontend, infraestructura, seguridad, permisos, evaluaciones y arquitectura completa, que son precisamente las capacidades solicitadas en el puesto.
 
 ---
 
@@ -597,7 +596,6 @@ Crear archivos ADR, Architecture Decision Records, para explicar:
 9. Cómo se versionan prompts y evaluaciones.
 10. Qué ocurre cuando un servicio falla.
 
-No basta con implementar: debe explicarse qué alternativas se estudiaron y por qué se eligió cada solución.
 
 ---
 
@@ -706,23 +704,3 @@ El proyecto se considerará correcto cuando:
 
 ---
 
-# Resultado que debe transmitir
-
-Este proyecto debe demostrar que el candidato no se limita a conectar una API de ChatGPT.
-
-Debe demostrar que sabe:
-
-* Diseñar un producto de IA completo.
-* Controlar agentes.
-* Construir frontend y backend.
-* Trabajar con datos y permisos.
-* Diseñar sistemas multi-tenant.
-* Proteger información.
-* Crear políticas.
-* Implementar revisión humana.
-* Evaluar resultados.
-* Diagnosticar fallos.
-* Tomar decisiones de arquitectura.
-* Explicar los límites reales de la IA.
-
-La prioridad no es crear muchas funciones, sino demostrar que el sistema es fiable, controlable, trazable y seguro.

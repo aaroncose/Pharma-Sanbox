@@ -41,8 +41,32 @@ LAURA = "laura.garcia@novapharma.demo"    # sales_rep — usa el simulador
 MARIA = "maria.ruiz@novapharma.demo"      # compliance — no genera contenido
 SOFIA = "sofia.marin@biohealth.demo"      # otra organización
 
-CARDIOX = "7df40f3d-fe19-4971-9d94-9c03abb3e4a0"
-NADAL = "09d5920a-f8f6-4b99-82e5-3f589416b6cf"
+# Se resuelven contra la base de datos en lugar de fijarse como literales. El
+# sembrado genera los identificadores con `gen_random_uuid()`, así que un UUID
+# escrito aquí solo funciona hasta la siguiente reconstrucción y después falla
+# con un 403 entre organizaciones —RLS no distingue «de otro cliente» de «no
+# existe»— que no tiene nada que ver con lo que el test comprueba.
+@pytest.fixture(scope="module")
+def cardiox(privileged_conn: Connection) -> str:
+    return str(
+        privileged_conn.execute(
+            text("SELECT id FROM products WHERE code = 'CARDIOX'")
+        ).scalar_one()
+    )
+
+
+@pytest.fixture(scope="module")
+def nadal(privileged_conn: Connection) -> str:
+    return str(
+        privileged_conn.execute(
+            text(
+                "SELECT h.id FROM healthcare_professionals h "
+                "  JOIN tenants t ON t.id = h.tenant_id "
+                " WHERE t.name = 'NovaPharma' AND h.full_name LIKE '%Nadal%' "
+                " LIMIT 1"
+            )
+        ).scalar_one()
+    )
 
 # La frase que el proyecto entero existe para detectar.
 AFIRMACION_SIN_RESPALDO = (
@@ -83,13 +107,13 @@ def auth(client: TestClient, email: str) -> dict[str, str]:
 
 
 @pytest.fixture
-def sim(client: TestClient) -> Iterator[str]:
+def sim(client: TestClient, nadal: str, cardiox: str) -> Iterator[str]:
     response = client.post(
         "/api/v1/simulations",
         headers=auth(client, LAURA),
         json={
-            "hcp_id": NADAL,
-            "product_id": CARDIOX,
+            "hcp_id": nadal,
+            "product_id": cardiox,
             "scenario": "Duda sobre la evidencia de eficacia",
             "objective": "Explicar la evidencia aprobada sin recomendaciones clínicas",
             "attitude": "escéptico",
@@ -548,14 +572,16 @@ def test_an_ended_simulation_accepts_no_more_turns(
     assert client.post(f"/api/v1/simulations/{sim}/end", headers=headers).status_code == 409
 
 
-def test_compliance_officer_cannot_run_a_simulation(client: TestClient) -> None:
+def test_compliance_officer_cannot_run_a_simulation(
+    client: TestClient, nadal: str, cardiox: str
+) -> None:
     """Quien revisa no genera contenido, tampoco practicando."""
     response = client.post(
         "/api/v1/simulations",
         headers=auth(client, MARIA),
         json={
-            "hcp_id": NADAL,
-            "product_id": CARDIOX,
+            "hcp_id": nadal,
+            "product_id": cardiox,
             "scenario": "Escenario de prueba",
             "objective": "Objetivo de prueba",
         },
