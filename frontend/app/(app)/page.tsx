@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 type Output = {
   id: string;
+  trace_id: string;
   kind: string;
   confidence: number;
   risk: string;
@@ -49,8 +50,31 @@ async function safe<T>(promise: Promise<T>): Promise<T | null> {
   }
 }
 
+const ROW = "flex items-center gap-4 px-5 py-3";
+
+function Row({
+  traceId,
+  children,
+}: {
+  traceId: string | null;
+  children: React.ReactNode;
+}) {
+  if (!traceId) {
+    return <div className={ROW}>{children}</div>;
+  }
+  return (
+    <Link
+      href={`/audit/trace/${traceId}`}
+      className={`${ROW} hover:bg-slate-100/60 transition-colors`}
+    >
+      {children}
+    </Link>
+  );
+}
+
 export default async function Dashboard() {
   const profile = (await getProfile())!;
+  const canSeeTraces = profile.permissions.includes("trace.read");
 
   const [outputs, stats] = await Promise.all([
     safe(
@@ -135,10 +159,7 @@ export default async function Dashboard() {
             <ul className="divide-y divide-slate-200">
               {recent.map((output) => (
                 <li key={output.id}>
-                  <Link
-                    href={`/outputs/${output.id}`}
-                    className="flex items-center gap-4 px-5 py-3 hover:bg-slate-100/60 transition-colors"
-                  >
+                  <Row traceId={canSeeTraces ? output.trace_id : null}>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[13px] font-medium text-slate-950">
@@ -162,7 +183,7 @@ export default async function Dashboard() {
                         {output.source_count === 1 ? "" : "s"}
                       </Mono>
                     </div>
-                  </Link>
+                  </Row>
                 </li>
               ))}
             </ul>

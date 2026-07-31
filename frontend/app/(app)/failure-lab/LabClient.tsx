@@ -108,12 +108,6 @@ function ResultPanel({ outcome }: { outcome: ScenarioOutcome }) {
 
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <Link
-            href={`/audit?trace=${outcome.traceId}`}
-            className="text-[13px] text-blue-600 hover:underline"
-          >
-            Ver auditoría
-          </Link>
-          <Link
             href={`/audit/trace/${outcome.traceId}`}
             className="text-[13px] text-blue-600 hover:underline"
           >

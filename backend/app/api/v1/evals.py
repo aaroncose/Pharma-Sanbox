@@ -68,8 +68,11 @@ def overview(
     puede bajar hasta que todo salga verde sin que quede rastro; viniendo del
     servidor, cambiarlo es un cambio de código.
     """
-    suite.ensure_dataset(session)
-
+    # Sembrar el conjunto es una escritura, y esto es una lectura. Hacerlo aquí
+    # convertía la pantalla en un 500 para todo rol que pueda leer evaluaciones
+    # pero no escribirlas —auditoría y administración de la organización—, que
+    # es justamente a quien más le interesa consultarlas. Lo siembra
+    # `run_suite`, que es quien necesita que exista.
     runs = session.execute(
         text(
             "SELECT r.id, r.prompt_name, r.prompt_version, r.model, r.provider, "
@@ -107,7 +110,6 @@ def list_cases(session: TenantSession) -> dict[str, Any]:
     porcentaje, y el porcentaje es exactamente lo que no hay que creerse sin
     ver los casos.
     """
-    suite.ensure_dataset(session)
     return {
         "slug": DATASET_SLUG,
         "count": CASE_COUNT,

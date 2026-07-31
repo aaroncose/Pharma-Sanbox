@@ -12,6 +12,7 @@ import {
 import { api } from "@/lib/api";
 
 import { DecisionPanel } from "./DecisionPanel";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,9 @@ export default async function ReviewDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const denied = await guard("review.read");
+  if (denied) return denied;
+
   const { id } = await params;
   const item = await api<Detail>(`/api/v1/review/${id}`);
   const decided = item.status !== "pending";

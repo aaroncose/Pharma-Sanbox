@@ -141,6 +141,31 @@ def _make_item(
     return item_id
 
 
+def _purge(conn: Connection, *item_ids: str) -> None:
+    """Borra las entradas creadas por `_make_item` y solo esas.
+
+    Borrar por `prompt_name` arrastraba salidas ajenas y dejaba la cola llena de
+    residuos cuando la restricción de clave ajena abortaba la limpieza.
+    """
+    ids = list(item_ids)
+    outputs = conn.execute(
+        text(
+            "SELECT agent_output_id FROM review_items "
+            " WHERE id = ANY(CAST(:ids AS uuid[]))"
+        ),
+        {"ids": ids},
+    ).scalars().all()
+    conn.execute(
+        text("DELETE FROM review_items WHERE id = ANY(CAST(:ids AS uuid[]))"),
+        {"ids": ids},
+    )
+    if outputs:
+        conn.execute(
+            text("DELETE FROM agent_outputs WHERE id = ANY(CAST(:ids AS uuid[]))"),
+            {"ids": [str(o) for o in outputs]},
+        )
+
+
 @pytest.fixture
 def item() -> Iterator[str]:
     engine = create_privileged_engine()
@@ -148,11 +173,7 @@ def item() -> Iterator[str]:
         item_id = _make_item(conn, tenant_slug="nph_01", author_email=LAURA)
     yield item_id
     with engine.begin() as conn:
-        conn.execute(
-            text("DELETE FROM review_items WHERE id = CAST(:id AS uuid)"),
-            {"id": item_id},
-        )
-        conn.execute(text("DELETE FROM agent_outputs WHERE prompt_name = 'chat'"))
+        _purge(conn, item_id)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -354,11 +375,7 @@ def test_the_author_cannot_decide_on_their_own_content(
         assert response.json()["details"]["rule"] == "SEPARATION_OF_DUTIES"
     finally:
         with create_privileged_engine().begin() as conn:
-            conn.execute(
-                text("DELETE FROM review_items WHERE id = CAST(:id AS uuid)"),
-                {"id": item_id},
-            )
-            conn.execute(text("DELETE FROM agent_outputs WHERE prompt_name = 'chat'"))
+            _purge(conn, item_id)
 
 
 def test_sales_rep_cannot_decide_and_auditor_can_only_read(
@@ -537,11 +554,7 @@ def test_queue_is_ordered_by_priority_not_by_arrival(
         assert order.index(high) < order.index(low)
     finally:
         with engine.begin() as conn:
-            conn.execute(
-                text("DELETE FROM review_items WHERE id = ANY(CAST(:ids AS uuid[]))"),
-                {"ids": [low, high]},
-            )
-            conn.execute(text("DELETE FROM agent_outputs WHERE prompt_name = 'chat'"))
+            _purge(conn, low, high)
 
 
 def test_queue_reports_how_long_things_have_been_waiting(

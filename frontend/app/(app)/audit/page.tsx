@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, CardHeader, EmptyState, Mono } from "@/components/ui";
 import { api } from "@/lib/api";
 import { getProfile } from "@/lib/session";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,9 @@ export default async function AuditPage({
 }: {
   searchParams: Promise<{ view?: string }>;
 }) {
+  const denied = await guard("audit.read");
+  if (denied) return denied;
+
   const { view = "all" } = await searchParams;
   const profile = (await getProfile())!;
   const canExport = profile.permissions.includes("audit.export");

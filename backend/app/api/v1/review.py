@@ -151,7 +151,8 @@ def get_item(
             text(
                 "SELECT id, kind, payload, answer_text, confidence, risk, "
                 "       blocked_reason, trace_id, prompt_name, prompt_version, "
-                "       model, provider, cost_eur, created_at "
+                "       model, provider, latency_ms, input_tokens, output_tokens, "
+                "       cost_eur::double precision AS cost_eur, created_at "
                 "  FROM agent_outputs WHERE id = CAST(:id AS uuid)"
             ),
             {"id": item["agent_output_id"]},

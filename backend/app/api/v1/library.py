@@ -182,7 +182,19 @@ def get_document(
         {"id": document_id},
     ).scalar()
 
-    return {**document, "citable": bool(citable), "chunks": [dict(s) for s in sections]}
+    product_name = None
+    if document.get("product_id"):
+        product_name = session.execute(
+            text("SELECT name FROM products WHERE id = :p"),
+            {"p": document["product_id"]},
+        ).scalar()
+
+    return {
+        **document,
+        "product_name": product_name,
+        "citable": bool(citable),
+        "chunks": [dict(s) for s in sections],
+    }
 
 
 @router.patch(

@@ -8,6 +8,7 @@ import {
   StatusBadge,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,9 @@ export default async function TracePage({
 }: {
   params: Promise<{ traceId: string }>;
 }) {
+  const denied = await guard("trace.read");
+  if (denied) return denied;
+
   const { traceId } = await params;
   const trace = await api<Trace>(`/api/v1/audit/trace/${traceId}`);
 

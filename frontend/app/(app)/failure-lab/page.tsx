@@ -3,10 +3,14 @@ import { api } from "@/lib/api";
 import { getProfile } from "@/lib/session";
 
 import { LabClient, type Scenario } from "./LabClient";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
 export default async function FailureLabPage() {
+  const denied = await guard("failure_lab.read");
+  if (denied) return denied;
+
   const profile = (await getProfile())!;
   const canRun = profile.permissions.includes("failure_lab.run");
 

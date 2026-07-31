@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Card, CardHeader, EmptyState, Mono } from "@/components/ui";
 import { api } from "@/lib/api";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,9 @@ export default async function EvalRunPage({
 }: {
   params: Promise<{ runId: string }>;
 }) {
+  const denied = await guard("eval.read");
+  if (denied) return denied;
+
   const { runId } = await params;
   const data = await api<RunDetail>(`/api/v1/evals/runs/${runId}`);
 

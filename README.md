@@ -59,8 +59,14 @@ make setup            # entorno virtual, dependencias, .env, esquema y datos
 # Opción B — contenedores
 docker compose up -d db redis
 make setup
-make dev
+
+make dev              # API en :8010, frontend en :3000
 ```
+
+`make seed` deja documentos, profesionales y políticas, pero ninguna ejecución
+del agente: el panel, la cola de revisión y la auditoría salen vacíos. `make
+demo` los llena atravesando los mismos endpoints que usa la interfaz —no
+inserta filas a mano— así que las trazas, las citas y el coste son reales.
 
 Comprobación:
 
@@ -68,6 +74,9 @@ Comprobación:
 curl -s localhost:8010/readyz
 # {"status":"ready","database":"ok","rls_enforced":true,"db_role":"pharma_app",...}
 ```
+
+Acceso: cualquier cuenta de la pantalla de login, contraseña `Demo1234!`.
+`maria.ruiz@novapharma.demo` (compliance) es la que más pantallas ve.
 
 `make help` lista el resto de comandos.
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Card, CardHeader, EmptyState, Mono, StatusBadge } from "@/components/ui";
 import { api } from "@/lib/api";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,9 @@ export default async function LibraryPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  const denied = await guard("document.read");
+  if (denied) return denied;
+
   const { status } = await searchParams;
   const query = status ? `?status=${encodeURIComponent(status)}&limit=100` : "?limit=100";
   const { items } = await api<{ items: Doc[] }>(`/api/v1/library/documents${query}`);

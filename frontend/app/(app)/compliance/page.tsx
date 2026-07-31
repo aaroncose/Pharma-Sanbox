@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Card, CardHeader, EmptyState, Mono, StatusBadge } from "@/components/ui";
 import { api } from "@/lib/api";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,9 @@ export default async function CompliancePage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  const denied = await guard("review.read");
+  if (denied) return denied;
+
   const { status = "pending" } = await searchParams;
   const { items, totals } = await api<{
     items: Item[];

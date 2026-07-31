@@ -78,7 +78,7 @@ export default function LoginPage() {
     router.refresh();
   }
 
-  function useAccount(accountEmail: string) {
+  function selectAccount(accountEmail: string) {
     setEmail(accountEmail);
     setPassword(DEMO_PASSWORD);
     setError(null);
@@ -190,7 +190,7 @@ export default function LoginPage() {
                   <li key={account.email}>
                     <button
                       type="button"
-                      onClick={() => useAccount(account.email)}
+                      onClick={() => selectAccount(account.email)}
                       className="w-full text-left bg-white border border-slate-200 rounded-[10px] px-3 py-2.5 hover:border-blue-600 hover:bg-blue-50/40 transition-colors"
                     >
                       <div className="flex items-baseline justify-between gap-2">

@@ -470,7 +470,8 @@ def list_outputs(
         text(
             "SELECT o.id, o.kind, o.confidence, o.risk, o.requires_human_review, "
             "       o.blocked_reason, o.trace_id, o.prompt_name, o.prompt_version, "
-            "       o.model, o.provider, o.latency_ms, o.cost_eur, o.created_at, "
+            "       o.model, o.provider, o.latency_ms, "
+            "       o.cost_eur::double precision AS cost_eur, o.created_at, "
             "       u.full_name AS author, h.full_name AS hcp_name, "
             "       p.name AS product_name, "
             "       (SELECT count(*) FROM agent_output_sources s "
@@ -514,7 +515,8 @@ def get_output(
         columns=(
             "id, kind, user_id, hcp_id, product_id, payload, answer_text, "
             "confidence, risk, requires_human_review, blocked_reason, trace_id, "
-            "prompt_name, prompt_version, model, provider, latency_ms, cost_eur, "
+            "prompt_name, prompt_version, model, provider, latency_ms, "
+            "cost_eur::double precision AS cost_eur, "
             "input_tokens, output_tokens, created_at"
         ),
         extra_where="deleted_at IS NULL",

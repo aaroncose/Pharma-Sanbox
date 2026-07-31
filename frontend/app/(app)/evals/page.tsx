@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { getProfile } from "@/lib/session";
 
 import { RunControls } from "./RunControls";
+import { guard } from "@/components/Guard";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,9 @@ function meetsTarget(key: string, value: unknown, target?: Target): boolean | nu
 }
 
 export default async function EvalsPage() {
+  const denied = await guard("eval.read");
+  if (denied) return denied;
+
   const profile = (await getProfile())!;
   const canRun = profile.permissions.includes("eval.run");
 
