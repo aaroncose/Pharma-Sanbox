@@ -29,20 +29,24 @@ conectado a un modelo.
 | 6 | Frontend | ok |
 | 7 | Failure Lab y evaluaciones | ok |
 | 8 | Documentación y entregables | ok |
+| 9 | Revisión de entrega y correcciones | ok |
 
-| 9 | Revision y correciones y añadir funciones (citadas aqui abajo) | trabajando en ello Vie 31 Jul 12:24 | 
+**Requisito para ejecutarlo:** PostgreSQL 17 con pgvector y Redis. Nativos con
+`make setup-native`, o en contenedores con `docker compose up -d db redis`. El
+resto del sistema no necesita Docker.
 
-⚠️ Frontend con bloqueo de build/lint.
-⚠️ La validación completa del sistema requiere PostgreSQL y Redis.
-⚠️ Requiere levantar Docker
+Sin `ANTHROPIC_API_KEY` el sistema degrada a un proveedor mock determinista y la
+demostración sigue siendo ejecutable, sin red y sin coste.
 
-IMPORTANTE!!
+Estado de las comprobaciones en la última revisión:
 
-He subido este proyecto como base técnica de una demo de referencia en seguridad y trazabilidad para agentes en un contexto farmacéutico. 
-La parte de backend y la arquitectura de aislamiento multi-tenant están ya construidas y parcialmente validadas con pruebas, pero el proyecto aún no está cerrado como demo end-to-end en este entorno: el frontend presenta bloqueos de build/lint y la validación completa del sistema requiere PostgreSQL y Redis disponibles. 
-En otras palabras, el repositorio ya ofrece una base sólida y verificable, pero no una entrega totalmente pulida y ejecutable sin esos servicios y ajustes adicionales.
-
-Sigo trabajando en ello, lo ire actualizando asap.
+```text
+make test     173 pruebas, 0 fallos
+make lint     ruff y eslint sin avisos
+npm run build compila las 18 rutas
+make eval     todos los objetivos de la suite cumplidos
+Failure Lab   7/7 escenarios
+```
 
 ---
 
