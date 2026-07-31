@@ -1,26 +1,111 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ─────────────────────────────────────────────────────────────────────────────
+   Sistema de diseño
+
+   La dirección visual es "producto regulado", no "dashboard de IA": control,
+   trazabilidad y responsabilidad. De ahí tres reglas que se aplican en todas
+   las pantallas.
+
+   1. El color tiene significado y solo uno. Teal es "validado", ámbar es
+      "requiere revisión", rojo es "bloqueado". Nunca se usan como decoración,
+      porque en cuanto un color decorativo comparte tono con uno semántico, el
+      usuario deja de fiarse de ambos.
+
+   2. Los identificadores, versiones de prompt, códigos de política y trazas van
+      en monoespaciada. Son datos que se copian y se comparan carácter a
+      carácter; en proporcional, `l` y `1` se confunden.
+
+   3. No hay modo oscuro. Es una decisión, no una carencia: la paleta
+      semántica está calibrada sobre fondo claro, y mantener dos calibraciones
+      correctas para tres estados de riesgo duplica el trabajo donde más caro
+      es equivocarse.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Superficies */
+  --color-navy-950: #091827; /* fondo de la navegación lateral */
+  --color-navy-900: #0e2238;
+  --color-navy-800: #16304c;
+
+  /* Acción */
+  --color-blue-600: #2563eb;
+  --color-blue-500: #3b82f6;
+  --color-blue-50: #eff6ff;
+
+  /* Semántica de estado. Estos tres no se usan nunca por estética. */
+  --color-teal-500: #14b8a6; /* validado / aprobado */
+  --color-teal-50: #f0fdfa;
+  --color-amber-500: #f59e0b; /* requiere revisión humana */
+  --color-amber-50: #fffbeb;
+  --color-red-500: #ef4444; /* bloqueado / riesgo */
+  --color-red-50: #fef2f2;
+
+  /* Texto y bordes */
+  --color-slate-950: #0f172a;
+  --color-slate-700: #334155;
+  --color-slate-500: #64748b;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #f1f5f9;
+
+  --color-canvas: #f7f9fc;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --radius-card: 12px;
+  --radius-control: 10px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    /* Las cifras de las tablas de auditoría y coste tienen que alinearse en
+       columna: sin esto, comparar dos importes exige leerlos en vez de verlos. */
+    font-variant-numeric: tabular-nums;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    background: var(--color-canvas);
+    color: var(--color-slate-950);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* El foco visible no se quita nunca. Media pantalla de este producto la usa
+     compliance con teclado sobre tablas largas. */
+  :focus-visible {
+    outline: 2px solid var(--color-blue-600);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  code,
+  kbd,
+  samp,
+  .mono {
+    font-family: var(--font-mono);
+    font-feature-settings: "zero" 1; /* cero barrado: 0 y O no se confunden */
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* El aviso de entorno de demostración. Va fijo y no se puede cerrar: quien
+     mire esta pantalla tiene que saber en todo momento que los datos son
+     sintéticos, y un banner que se cierra deja de cumplir esa función en cuanto
+     alguien lo cierra. */
+  .demo-banner {
+    @apply bg-amber-500 text-navy-950 text-[11px] font-semibold tracking-wider
+           uppercase text-center py-1 px-4;
+  }
+}
+
+/* Respeta a quien ha pedido menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
