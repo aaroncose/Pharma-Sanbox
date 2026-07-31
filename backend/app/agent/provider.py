@@ -51,6 +51,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, Literal
 
 from app.config import settings
@@ -65,6 +66,26 @@ Effort = Literal["low", "medium", "high", "xhigh", "max"]
 # ─────────────────────────────────────────────────────────────────────────────
 # Capacidades y precios por modelo
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class PromotionalPricing:
+    """Precio de lanzamiento con fecha de caducidad.
+
+    Existe porque el coste que este proyecto muestra en auditoría es una de sus
+    afirmaciones, y una afirmación numérica que nadie recalcula envejece mal en
+    los dos sentidos: hoy sobreestimaría, y en septiembre —cuando el precio
+    promocional expire— subestimaría.
+
+    La alternativa era escribir el precio promocional a pelo y poner un
+    comentario. Un comentario no cambia el número el día que toca.
+    """
+
+    input_price_per_mtok: float
+    output_price_per_mtok: float
+    cache_read_price_per_mtok: float
+    # Último día en que aplica, inclusive.
+    until: date
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +108,21 @@ class ModelCapabilities:
     # Prefijo mínimo para que la caché de prompt se active. Por debajo de este
     # umbral no se cachea y no hay error: `cache_creation_input_tokens` sale 0.
     min_cacheable_prefix_tokens: int
+    promotional: PromotionalPricing | None = None
+
+    def prices_on(self, day: date) -> tuple[float, float, float]:
+        """Precios vigentes ese día: (entrada, salida, lectura de caché)."""
+        if self.promotional is not None and day <= self.promotional.until:
+            return (
+                self.promotional.input_price_per_mtok,
+                self.promotional.output_price_per_mtok,
+                self.promotional.cache_read_price_per_mtok,
+            )
+        return (
+            self.input_price_per_mtok,
+            self.output_price_per_mtok,
+            self.cache_read_price_per_mtok,
+        )
 
 
 MODEL_CAPABILITIES: dict[str, ModelCapabilities] = {
@@ -109,6 +145,15 @@ MODEL_CAPABILITIES: dict[str, ModelCapabilities] = {
         input_price_per_mtok=3.00,
         output_price_per_mtok=15.00,
         cache_read_price_per_mtok=0.30,
+        # Precio de lanzamiento vigente hasta el 31 de agosto de 2026. Sin esto,
+        # el coste que la pantalla de auditoría presenta como real estaría un
+        # 50% por encima del que se factura de verdad.
+        promotional=PromotionalPricing(
+            input_price_per_mtok=2.00,
+            output_price_per_mtok=10.00,
+            cache_read_price_per_mtok=0.20,
+            until=date(2026, 8, 31),
+        ),
         supports_effort=True,
         supports_adaptive_thinking=True,
         supports_structured_output=True,
@@ -163,19 +208,27 @@ class LLMUsage:
     # que desde una casilla vacía se ven igual.
     thinking_tokens: int = 0
 
-    def cost_eur(self, caps: ModelCapabilities) -> float:
-        """Coste aproximado en euros.
+    def cost_eur(self, caps: ModelCapabilities, *, on: date | None = None) -> float:
+        """Coste aproximado en euros, al precio vigente el día del uso.
 
         Los tokens leídos de caché se facturan a una décima parte, así que
         contarlos como entrada normal sobreestimaría el coste de forma
         sistemática en las conversaciones largas del simulador.
+
+        `on` permite recalcular una ejecución pasada a su precio de entonces en
+        lugar del de hoy. Se usa hoy por defecto porque el coste se calcula en
+        el momento de la llamada, pero el parámetro existe para que recalcular
+        el histórico sea posible sin reescribir esta función.
         """
+        day = on or date.today()
+        precio_entrada, precio_salida, precio_cache = caps.prices_on(day)
+
         usd = (
-            self.input_tokens * caps.input_price_per_mtok
-            + self.output_tokens * caps.output_price_per_mtok
-            + self.cache_read_tokens * caps.cache_read_price_per_mtok
+            self.input_tokens * precio_entrada
+            + self.output_tokens * precio_salida
+            + self.cache_read_tokens * precio_cache
             # La escritura en cache cuesta 1,25 veces la entrada.
-            + self.cache_write_tokens * caps.input_price_per_mtok * 1.25
+            + self.cache_write_tokens * precio_entrada * 1.25
         ) / 1_000_000
         return round(usd * USD_TO_EUR, 6)
 

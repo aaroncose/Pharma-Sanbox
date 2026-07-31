@@ -17,6 +17,8 @@ emitir un campo que Pydantic exigía. El contrato se contradecía a sí mismo y 
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from pydantic import BaseModel, Field
 
@@ -183,6 +185,61 @@ def test_every_field_tells_the_model_what_it_is(model_cls: type[BaseModel]) -> N
     assert not sin_descripcion, (
         f"{model_cls.__name__}: campos sin descripción para el modelo: "
         f"{sin_descripcion}"
+    )
+
+
+def test_promotional_pricing_applies_and_expires_on_its_own() -> None:
+    """El coste que la auditoría presenta como real tiene que serlo.
+
+    Sonnet 5 tiene precio de lanzamiento hasta el 31-08-2026. Cobrarle el precio
+    estándar hoy sobreestima un 50%; escribir el promocional a pelo lo
+    subestimaría a partir de septiembre. El precio se resuelve por fecha para
+    que ninguna de las dos cosas ocurra sin que nadie lo toque.
+    """
+    from datetime import date
+
+    from app.agent.provider import LLMUsage, capabilities_for
+
+    caps = capabilities_for("claude-sonnet-5")
+    assert caps.promotional is not None
+
+    uso = LLMUsage(input_tokens=1_000_000, output_tokens=1_000_000)
+
+    ultimo_dia_promo = uso.cost_eur(caps, on=caps.promotional.until)
+    primer_dia_estandar = uso.cost_eur(
+        caps, on=caps.promotional.until + timedelta(days=1)
+    )
+
+    assert ultimo_dia_promo < primer_dia_estandar, (
+        "el precio promocional debe ser más barato que el estándar"
+    )
+    # 2 + 10 USD promocional frente a 3 + 15 estándar, convertido a euros.
+    assert ultimo_dia_promo == round(12.0 * 0.92, 6)
+    assert primer_dia_estandar == round(18.0 * 0.92, 6)
+
+    # Un modelo sin promoción cobra lo mismo cualquier día.
+    haiku = capabilities_for("claude-haiku-4-5")
+    assert haiku.promotional is None
+    assert uso.cost_eur(haiku, on=date(2026, 1, 1)) == uso.cost_eur(
+        haiku, on=date(2027, 1, 1)
+    )
+
+
+def test_cache_reads_are_not_billed_as_full_input() -> None:
+    """Contar la caché como entrada normal sobreestimaría sistemáticamente.
+
+    Importa en el simulador, donde el prompt de sistema se repite en cada turno
+    y la mayor parte de la entrada acaba siendo lectura de caché.
+    """
+    from app.agent.provider import LLMUsage, capabilities_for
+
+    caps = capabilities_for("claude-sonnet-5")
+
+    todo_fresco = LLMUsage(input_tokens=100_000).cost_eur(caps)
+    todo_cacheado = LLMUsage(cache_read_tokens=100_000).cost_eur(caps)
+
+    assert todo_cacheado < todo_fresco / 5, (
+        "la lectura de caché debe costar una fracción de la entrada normal"
     )
 
 

@@ -68,6 +68,14 @@ COMPLIANCE_REVIEW_APPROVED = "compliance.review.approved"
 COMPLIANCE_REVIEW_REJECTED = "compliance.review.rejected"
 COMPLIANCE_REVIEW_EDITED = "compliance.review.edited"
 
+# La lectura del registro no se audita: en volumen real generaría más eventos
+# que los que documenta, y cada consulta a la pantalla de auditoría produciría
+# una entrada que a su vez aparece en la pantalla. La **exportación** sí, porque
+# es un evento distinto: saca los datos del sistema. Sin esto, «quién se llevó
+# una copia de la actividad comercial» es justo la pregunta que el registro de
+# auditoría no puede responder.
+AUDIT_EXPORTED = "audit.log.exported"
+
 FAILURE_LAB_EXECUTED = "failure_lab.scenario.executed"
 
 
