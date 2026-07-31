@@ -36,6 +36,14 @@ conectado a un modelo.
 ⚠️ La validación completa del sistema requiere PostgreSQL y Redis.
 ⚠️ Requiere levantar Docker
 
+IMPORTANTE!!
+
+He subido este proyecto como base técnica de una demo de referencia en seguridad y trazabilidad para agentes en un contexto farmacéutico. 
+La parte de backend y la arquitectura de aislamiento multi-tenant están ya construidas y parcialmente validadas con pruebas, pero el proyecto aún no está cerrado como demo end-to-end en este entorno: el frontend presenta bloqueos de build/lint y la validación completa del sistema requiere PostgreSQL y Redis disponibles. 
+En otras palabras, el repositorio ya ofrece una base sólida y verificable, pero no una entrega totalmente pulida y ejecutable sin esos servicios y ajustes adicionales.
+
+Sigo trabajando en ello, lo ire actualizando asap.
+
 ---
 
 ## Arranque rápido
