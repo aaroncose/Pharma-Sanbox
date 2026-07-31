@@ -21,14 +21,16 @@ conectado a un modelo.
 
 | Fase | Contenido | Estado |
 |------|-----------|--------|
-| 1 | Scaffolding e infraestructura | ✅ |
-| 2 | Modelo de datos, RLS y datos sintéticos | ⏳ |
-| 3 | Auth, roles y aislamiento multi-tenant | ⏳ |
-| 4 | Harness del agente | ⏳ |
-| 5 | Módulos funcionales | ⏳ |
-| 6 | Frontend | ⏳ |
-| 7 | Failure Lab y evaluaciones | ✅ |
-| 8 | Documentación y entregables | ⏳ |
+| 1 | Scaffolding e infraestructura | ok |
+| 2 | Modelo de datos, RLS y datos sintéticos | ok |
+| 3 | Auth, roles y aislamiento multi-tenant | ok |
+| 4 | Harness del agente | ok |
+| 5 | Módulos funcionales | ok |
+| 6 | Frontend | ok |
+| 7 | Failure Lab y evaluaciones | ok |
+| 8 | Documentación y entregables | ok |
+
+| 9 | Revision y correciones | trabajando en ello Vie 31 Jul 12:24 |
 
 ---
 
