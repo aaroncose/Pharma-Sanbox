@@ -30,7 +30,11 @@ conectado a un modelo.
 | 7 | Failure Lab y evaluaciones | ok |
 | 8 | Documentación y entregables | ok |
 
-| 9 | Revision y correciones | trabajando en ello Vie 31 Jul 12:24 |
+| 9 | Revision y correciones y añadir funciones (citadas aqui abajo) | trabajando en ello Vie 31 Jul 12:24 | 
+
+⚠️ Frontend con bloqueo de build/lint.
+⚠️ La validación completa del sistema requiere PostgreSQL y Redis.
+⚠️ Requiere levantar Docker
 
 ---
 
